@@ -42,21 +42,27 @@ class GemmaEngine:
             "  }\n"
             "}"
         )
-        try:
-            resp = self.client.models.generate_content(
-                model=self.model,
-                contents=[prompt, image]
-            )
-            raw = resp.text.strip()
-            # Clean markdown code blocks if returned
-            if raw.startswith("```json"):
-                raw = raw[7:]
-            if raw.startswith("```"):
-                raw = raw[3:]
-            if raw.endswith("```"):
-                raw = raw[:-3]
-            data = json.loads(raw.strip())
-            return data
+        candidate_models = [self.model, "models/gemma-4-31b-it", "gemini-2.5-flash"]
+        for model in candidate_models:
+            for attempt in range(2):
+                try:
+                    resp = self.client.models.generate_content(
+                        model=model,
+                        contents=[prompt, image]
+                    )
+                    raw = resp.text.strip()
+                    # Clean markdown code blocks if returned
+                    if raw.startswith("```json"):
+                        raw = raw[7:]
+                    if raw.startswith("```"):
+                        raw = raw[3:]
+                    if raw.endswith("```"):
+                        raw = raw[:-3]
+                    data = json.loads(raw.strip())
+                    return data
+                except Exception:
+                    import time
+                    time.sleep(1.0)
         except Exception as e:
             # Safe structured fallback
             return {
@@ -75,6 +81,7 @@ class GemmaEngine:
         """
         Uses Gemma 4 to explain the grounded results clearly and naturally
         in the user's preferred language (e.g. English, Hausa, French).
+        Includes automatic retries for transient Google API 500 internal hiccups.
         """
         prompt = (
             f"You are the multilingual explainer for 'Snap & Understand'. "
@@ -86,11 +93,22 @@ class GemmaEngine:
             f"FACTUAL GROUNDING DATA:\n{grounding_data}\n\n"
             f"Format with clean headings, bullet points, and practical advice in {target_lang}."
         )
-        try:
-            resp = self.client.models.generate_content(
-                model=self.model,
-                contents=prompt
-            )
-            return resp.text.strip()
-        except Exception as e:
-            return f"Error generating multilingual explanation: {str(e)}"
+
+        candidate_models = [self.model, "models/gemma-4-31b-it", "gemini-2.5-flash"]
+        last_error = ""
+
+        for model in candidate_models:
+            for attempt in range(2):
+                try:
+                    resp = self.client.models.generate_content(
+                        model=model,
+                        contents=prompt
+                    )
+                    if resp and resp.text:
+                        return resp.text.strip()
+                except Exception as e:
+                    last_error = str(e)
+                    import time
+                    time.sleep(1.0)
+
+        return f"Explanation temporarily unavailable ({last_error}). Please click Analyze again."
