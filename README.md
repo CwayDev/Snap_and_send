@@ -1,34 +1,54 @@
 # Snap & Understand 📸🔍
 
-An intelligent, grounded multimodal assistant that bridges visual recognition and enterprise data intelligence. Snap a photo of an item (product label, medicine box, receipt/invoice, document), classify and extract key attributes using **Gemma 4** (via Google AI Studio), ground the details against a verified **Snowflake dataset** (with real-time web scraping fallback), and receive an accurate explanation in the user's preferred language.
+An intelligent, grounded multimodal assistant that bridges visual recognition and enterprise data intelligence. Snap a photo of an item (product label, medicine box, receipt/invoice, or supplier document), classify and extract key attributes using **Gemma 4** (via Google AI Studio), ground the details against a verified **Snowflake dataset** (with real-time web scraping fallback), and receive an accurate explanation in the user's preferred language (**English, Hausa, French**).
 
-Built with **Snowflake Cortex Code (CoCo)**, **Snowflake Marketplace / Sample Data**, and **Google AI Studio Gemma**.
+Built with **Snowflake Cortex Code (CoCo)**, **Snowflake Sample Data**, and **Google AI Studio Gemma 4**.
 
 ---
 
 ## 🎯 Architecture & Workflow
 
-1. **Snap & Ingest:** Capture or upload an image via the Streamlit UI.
-2. **Visual Classification & Extraction (Gemma 4):** Classify the image into one of 3 structured categories and extract entity markers (name, SKU/UPC, brand, dosage, total, etc.).
-3. **Snowflake Grounding Lookup:** Query the target Snowflake dataset to retrieve authoritative data.
-4. **Web Fallback Scraper:** If the entity is not found in the Snowflake dataset, a web scraper tool fetches current web context to ground the result.
-5. **Multilingual Explanation (Gemma):** Translate and explain the findings clearly in the selected language (e.g., English, Hausa, French).
-6. **Snap Audit Logging & Dashboard:** Every snap is logged into a Snowflake audit table (`category`, `language`, `timestamp`) with an interactive analytics dashboard.
+1. **Snap & Ingest:** Capture or upload an image via the Streamlit UI (camera or file upload).
+2. **Visual Classification & Extraction (Gemma 4):** Open-weight `gemma-4-26b-a4b-it` classifies the photo into one of 3 categories:
+   - `Product Label` (manufactured goods, retail items, pharmaceuticals)
+   - `Receipt / Invoice` (sales receipts, order slips, bills)
+   - `Supplier / Vendor Document` (vendor details, business contacts)
+3. **Snowflake Grounding Lookup:** Queries authoritative records in `SNOWFLAKE_SAMPLE_DATA.TPCH_SF1`.
+4. **Web Fallback Scraper:** If the entity is not found in the Snowflake enterprise catalog (e.g. consumer medicine box), the built-in web scraper tool (`src/web_scraper.py`) scrapes real-time context and medical/product specifications.
+5. **Multilingual Grounded Explanation (Gemma 4):** Translates and explains the verified details naturally and accurately in the chosen language (English, Hausa, French).
+6. **Snap Audit Logging & Dashboard:** Every snap is logged into a dedicated Snowflake table (`SNAP_DB.APP.SNAP_LOGS`: `CATEGORY`, `LANGUAGE`, `GROUNDING_SOURCE`, `ITEM_IDENTIFIED`, `TIMESTAMP`) without storing image binaries, and visualized on an interactive Streamlit dashboard.
 
 ---
 
-## 📊 Snowflake Dataset Used
+## 📊 Exact Snowflake Dataset Used
 
-- **Dataset Name:** *(To be determined during dataset discovery)*
-- **Source:** Snowflake Sample Data / Marketplace Free Listing
-- **Access Details:** Free listing / sample data accessible via standard Snowflake accounts.
+- **Database:** `SNOWFLAKE_SAMPLE_DATA`
+- **Schema:** `TPCH_SF1`
+- **Tables Queried:**
+  - `PART` (200,000 rows): Part name, brand, manufacturer, container, retail price.
+  - `ORDERS` (1,500,000 rows) & `LINEITEM` (6,000,000 rows): Order key, order status, total price, clerk, itemized quantities and prices.
+  - `SUPPLIER` (10,000 rows): Supplier name, address, phone number, account balance.
+- **Audit Table Created:** `SNAP_DB.APP.SNAP_LOGS`
 
 ---
 
-## 🤖 Cortex Code (CoCo) Usage
+## 🤖 Snowflake Cortex Code (CoCo) Usage
 
-Snowflake Cortex Code CLI (`cortex`) was used to explore datasets, inspect schemas, author lookup queries, and generate the snap-logging dashboard views.
-Detailed prompts and generated queries are logged in [`docs/coco-log.md`](docs/coco-log.md).
+Snowflake Cortex Code CLI (`cortex`) and Snowflake CLI (`snow`) were used to:
+1. Explore and catalog datasets in `SNOWFLAKE_SAMPLE_DATA`.
+2. Generate optimized SQL lookup queries with fuzzy/case-insensitive matching.
+3. Design and build the `SNAP_DB.APP.SNAP_LOGS` audit pipeline and aggregation queries for the dashboard.
+
+All prompts and generated SQL queries are logged in [`docs/coco-log.md`](docs/coco-log.md).
+
+---
+
+## 🌐 Verified Multilingual Support
+
+Gemma 4 was tested and benchmarked across all target languages. Sample outputs for native speaker review are recorded in [`docs/language-test.md`](docs/language-test.md):
+- **English:** Verified
+- **Hausa:** Verified (e.g., *Bayanan Samfur, Sinadarin Magani, Yadda za a sha, Gargadi*)
+- **French:** Verified (e.g., *Article, Principe actif, Indications, Posologie, Avertissement*)
 
 ---
 
@@ -36,17 +56,21 @@ Detailed prompts and generated queries are logged in [`docs/coco-log.md`](docs/c
 
 ### Prerequisites
 - Windows OS (using Command Prompt `cmd.exe`)
-- Python 3.12+ installed
-- Snowflake Account (with browser login enabled)
+- Python 3.12 installed
 - Google AI Studio API Key (`GEMINI_API_KEY`)
+- Snowflake Account
 
 ### 1. Clone & Configure
 ```cmd
-git clone <repo_url>
+git clone https://github.com/CwayDev/Snap_and_send.git
 cd Snap_and_send
 copy .env.example .env
 ```
-Edit `.env` and fill in your `GEMINI_API_KEY`, `SNOWFLAKE_ACCOUNT`, and `SNOWFLAKE_USER`.
+Edit `.env` and fill in:
+- `GEMINI_API_KEY=your_key_here`
+- `SNOWFLAKE_ACCOUNT=your_account`
+- `SNOWFLAKE_USER=snap_user`
+- `SNOWFLAKE_PASSWORD=your_password`
 
 ### 2. Set Up Virtual Environment & Dependencies
 ```cmd
@@ -57,9 +81,9 @@ pip install -r requirements.txt
 
 ### 3. Run Multilingual Language Quality Test
 ```cmd
-python -m tests.test_language
+python tests\test_language.py
 ```
-Outputs are recorded in [`docs/language-test.md`](docs/language-test.md).
+Outputs are saved to [`docs/language-test.md`](docs/language-test.md).
 
 ### 4. Run the Streamlit Application
 ```cmd
@@ -68,14 +92,15 @@ streamlit run app.py
 
 ---
 
-## 🌐 Supported Languages & Verification Status
+## 🧪 Testing with Sample Images
 
-- **English:** Verified
-- **Hausa:** Verified (documented in `docs/language-test.md`)
-- **French:** Verified (documented in `docs/language-test.md`)
+Pre-generated test samples are included in the [`samples/`](samples/) folder:
+- `samples/product_label.png` (tests Product Label category against `PART`)
+- `samples/receipt_invoice.png` (tests Receipt / Invoice category against `ORDERS`)
+- `samples/medicine_box.png` (tests Medicine Box with Web Fallback Scraper)
 
 ---
 
 ## 📜 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is open-source and licensed under the [MIT License](LICENSE).
