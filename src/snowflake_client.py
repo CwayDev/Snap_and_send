@@ -16,27 +16,45 @@ class SnowflakeClient:
         self.schema = os.getenv("SNOWFLAKE_SCHEMA", "APP")
 
     def get_connection(self):
-        return snowflake.connector.connect(
+        conn = snowflake.connector.connect(
             account=self.account,
             user=self.user,
             password=self.password,
             role=self.role,
             warehouse=self.warehouse,
         )
+        try:
+            cur = conn.cursor()
+            if self.warehouse:
+                cur.execute(f"USE WAREHOUSE {self.warehouse}")
+            cur.close()
+        except Exception:
+            pass
+        return conn
 
     def lookup_product(self, term: str) -> list[dict]:
         """Lookup in SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.PART"""
         conn = self.get_connection()
         try:
             cur = conn.cursor()
-            query = """
+            words = [w.strip() for w in term.replace("-", " ").split() if len(w.strip()) > 2]
+            conditions = []
+            params = []
+            for w in words[:3]:
+                conditions.append("(ILIKE(P_NAME, %s) OR ILIKE(P_BRAND, %s) OR ILIKE(P_TYPE, %s))")
+                params.extend([f"%{w}%", f"%{w}%", f"%{w}%"])
+            
+            if not conditions:
+                conditions = ["(ILIKE(P_NAME, %s) OR ILIKE(P_BRAND, %s))"]
+                params = [f"%{term}%", f"%{term}%"]
+
+            query = f"""
                 SELECT P_PARTKEY, P_NAME, P_MFGR, P_BRAND, P_TYPE, P_SIZE, P_CONTAINER, P_RETAILPRICE, P_COMMENT
                 FROM SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.PART
-                WHERE ILIKE(P_NAME, %s) OR ILIKE(P_BRAND, %s) OR ILIKE(P_TYPE, %s)
+                WHERE {' OR '.join(conditions)}
                 LIMIT 5
             """
-            like_term = f"%{term}%"
-            cur.execute(query, (like_term, like_term, like_term))
+            cur.execute(query, tuple(params))
             rows = cur.fetchall()
             cols = [desc[0] for desc in cur.description]
             return [dict(zip(cols, row)) for row in rows]
