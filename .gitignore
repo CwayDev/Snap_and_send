@@ -1,0 +1,29 @@
+# Virtual Environment
+.venv/
+venv/
+ENV/
+
+# Secrets and environment variables
+.env
+*.env
+*.key
+*.pem
+secrets.toml
+connections.toml
+
+# Snowflake config and caches
+.snowflake/
+*.snowflake
+
+# Python bytecode & caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Streamlit config with secrets
+.streamlit/secrets.toml
+
+# OS files
+.DS_Store
+Thumbs.db
